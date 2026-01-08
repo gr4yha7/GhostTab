@@ -1,14 +1,14 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
+import { Icon } from './Icon';
 
 interface AvatarProps {
   src?: string;
-  initials?: string;
   size?: number;
   badge?: boolean;
 }
 
-export const Avatar: React.FC<AvatarProps> = ({ src, initials, size = 40, badge }) => (
+export const Avatar: React.FC<AvatarProps> = ({ src, size = 40, badge }) => (
   <View className="relative">
     {src ? (
       <Image
@@ -21,7 +21,7 @@ export const Avatar: React.FC<AvatarProps> = ({ src, initials, size = 40, badge 
         className="rounded-full bg-indigo-100 items-center justify-center border border-white shadow-sm"
         style={{ width: size, height: size }}
       >
-        <Text className="text-indigo-600 font-semibold text-xs">{initials}</Text>
+        <Icon name={'person'} color='white' size={size}/>
       </View>
     )}
     {badge && (
