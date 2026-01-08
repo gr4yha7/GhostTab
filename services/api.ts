@@ -8,7 +8,6 @@ import { API_CONFIG } from '../config/api';
 
 export interface User {
   id: string;
-  privyId: string;
   walletAddress: string;
   username?: string;
   email?: string;
@@ -16,14 +15,25 @@ export interface User {
   phone?: string;
   autoSettle: boolean;
   vaultAddress?: string;
+  trustScore: number;
+  settlementsOnTime: number;
+  settlementsLate: number;
+  totalSettlements: number;
+  avgSettlementDays?: number;
   createdAt?: string;
+}
+
+export interface TrustTier {
+  tier: 'Excellent' | 'Good' | 'Fair' | 'Poor';
+  color: string;
+  benefits: string[];
 }
 
 export interface Tab {
   id: string;
   title: string;
   description?: string;
-  icon?: string;
+  category: TabCategory;
   totalAmount: string;
   currency: string;
   status: 'OPEN' | 'SETTLED' | 'CANCELLED';
@@ -32,9 +42,37 @@ export interface Tab {
   creator: User;
   participants: TabParticipant[];
   summary: TabSummary;
+  settlementWallet?: string;
+  settlementDeadline?: string;
+  penaltyRate: number;
+  autoSettleEnabled: boolean;
+  groupId?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type TabCategory = 
+  | 'DINING'
+  | 'TRAVEL'
+  | 'GROCERIES'
+  | 'ENTERTAINMENT'
+  | 'UTILITIES'
+  | 'GIFTS'
+  | 'TRANSPORTATION'
+  | 'ACCOMMODATION'
+  | 'OTHER';
+
+export const TAB_CATEGORIES: Record<TabCategory, { label: string; icon: string; color: string }> = {
+  DINING: { label: 'Dining & Restaurants', icon: '🍽️', color: '#f59e0b' },
+  TRAVEL: { label: 'Travel & Trips', icon: '✈️', color: '#3b82f6' },
+  GROCERIES: { label: 'Groceries', icon: '🛒', color: '#10b981' },
+  ENTERTAINMENT: { label: 'Entertainment', icon: '🎬', color: '#8b5cf6' },
+  UTILITIES: { label: 'Utilities & Bills', icon: '💡', color: '#06b6d4' },
+  GIFTS: { label: 'Gifts', icon: '🎁', color: '#ec4899' },
+  TRANSPORTATION: { label: 'Transportation', icon: '🚗', color: '#6366f1' },
+  ACCOMMODATION: { label: 'Accommodation', icon: '🏠', color: '#14b8a6' },
+  OTHER: { label: 'Other', icon: '📝', color: '#64748b' },
+};
 
 export interface TabParticipant {
   userId: string;
@@ -43,6 +81,41 @@ export interface TabParticipant {
   paid: boolean;
   paidAt?: string;
   txHash?: string;
+  settledEarly: boolean;
+  daysLate: number;
+  penaltyAmount: string;
+  finalAmount: string;
+  // OTP verification
+  verified: boolean;
+  otpSentAt?: string;
+  verificationDeadline?: string;
+}
+
+export interface CategoryStats {
+  category: TabCategory;
+  count: number;
+  totalAmount: string;
+  percentage: number;
+}
+
+export interface InsightsData {
+  totalSplit: string;
+  averageSettleTime: number; // in days
+  categoryStats: CategoryStats[];
+  monthlyActivity: MonthlyActivity[];
+  topSplittingPals: TopPal[];
+}
+
+export interface MonthlyActivity {
+  month: string;
+  amount: string;
+  tabCount: number;
+}
+
+export interface TopPal {
+  user: User;
+  sharedTabsCount: number;
+  totalAmount: string;
 }
 
 export interface TabSummary {
@@ -80,6 +153,7 @@ export type NotificationType =
   | 'PAYMENT_RECEIVED'
   | 'PAYMENT_REMINDER'
   | 'TAB_SETTLED'
+  | 'TAB_PARTICIPATION'
   | 'MESSAGE_RECEIVED';
 
 export interface Channel {
@@ -101,6 +175,29 @@ export interface Message {
   updatedAt?: string;
   attachments?: any[];
 }
+
+export interface Group {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  streamChannelId?: string;
+  createdAt: string;
+  updatedAt: string;
+  creator: User;
+  members: GroupMember[];
+  memberCount: number;
+  role?: 'CREATOR' | 'ADMIN' | 'MEMBER';
+  joinedAt?: string;
+}
+
+export interface GroupMember {
+  id: string;
+  role: 'CREATOR' | 'ADMIN' | 'MEMBER';
+  joinedAt: string;
+  user: User;
+}
+
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -255,6 +352,22 @@ class ApiService {
     }
   }
 
+  // private async requestWithRetry(url: string, options: RequestInit, retries = 1) {
+  //   try {
+  //     return await this.request(url, options);
+  //   } catch (error) {
+  //     if (error.status === 401 && retries > 0) {
+  //       // Token expired, get fresh one from Privy
+  //       const freshToken = await getAccessToken();
+  //       this.setToken(freshToken);
+        
+  //       // Retry request
+  //       return this.requestWithRetry(url, options, retries - 1);
+  //     }
+  //     throw error;
+  //   }
+  // }
+
   // --------------------------------------------------------------------------
   // Auth Service Methods
   // --------------------------------------------------------------------------
@@ -402,24 +515,107 @@ class ApiService {
   }
 
   // --------------------------------------------------------------------------
-  // Tab Service Methods
+  // User Insights Methods
   // --------------------------------------------------------------------------
 
-  async createTab(tabData: {
-    title: string;
+  async getInsights(): Promise<InsightsData> {
+    return this.request<InsightsData>(
+      `${API_CONFIG.USER_SERVICE}/users/insights`
+    );
+  }
+
+  async getTrustTier(score: number): Promise<TrustTier> {
+    if (score >= 120) {
+      return {
+        tier: 'Excellent',
+        color: '#10b981',
+        benefits: ['Lower penalty rates', 'Priority support', 'Extended deadlines'],
+      };
+    } else if (score >= 100) {
+      return {
+        tier: 'Good',
+        color: '#3b82f6',
+        benefits: ['Standard rates', 'Normal deadlines'],
+      };
+    } else if (score >= 70) {
+      return {
+        tier: 'Fair',
+        color: '#f59e0b',
+        benefits: ['Standard rates', 'Payment reminders'],
+      };
+    } else {
+      return {
+        tier: 'Poor',
+        color: '#ef4444',
+        benefits: ['Higher penalty rates', 'Stricter deadlines'],
+      };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Group Service Methods
+  // --------------------------------------------------------------------------
+
+  async createGroup(data: {
+    name: string;
     description?: string;
     icon?: string;
-    totalAmount: string;
-    currency: string;
-    participants: { userId: string; shareAmount?: string }[];
-  }): Promise<{ tab: Tab }> {
-    return this.request<{ tab: Tab }>(`${API_CONFIG.TAB_SERVICE}/tabs`, {
+    initialMembers?: string[];
+  }): Promise<Group> {
+    return this.request<Group>(`${API_CONFIG.USER_SERVICE}/users/groups`, {
       method: 'POST',
-      body: JSON.stringify(tabData),
+      body: JSON.stringify(data),
     });
   }
 
-  async getTabs(
+  async getUserGroups(): Promise<Group[]> {
+    return this.request<Group[]>(`${API_CONFIG.USER_SERVICE}/users/groups`);
+  }
+
+  async getGroupById(groupId: string): Promise<Group> {
+    return this.request<Group>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}`);
+  }
+
+  async updateGroup(
+    groupId: string,
+    updates: { name?: string; description?: string; icon?: string }
+  ): Promise<Group> {
+    return this.request<Group>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async addGroupMembers(groupId: string, memberIds: string[]): Promise<void> {
+    await this.request<void>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ memberIds }),
+    });
+  }
+
+  async removeGroupMember(groupId: string, memberId: string): Promise<void> {
+    await this.request<void>(
+      `${API_CONFIG.USER_SERVICE}/users/groups/${groupId}/members/${memberId}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async makeGroupAdmin(groupId: string, memberId: string): Promise<void> {
+    await this.request<void>(
+      `${API_CONFIG.USER_SERVICE}/users/groups/${groupId}/admins/${memberId}`,
+      { method: 'POST' }
+    );
+  }
+
+  async removeGroupAdmin(groupId: string, adminId: string): Promise<void> {
+    await this.request<void>(
+      `${API_CONFIG.USER_SERVICE}/users/groups/${groupId}/admins/${adminId}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async getGroupTabs(
+    groupId: string,
     status?: 'OPEN' | 'SETTLED' | 'CANCELLED',
     page = 1,
     limit = 20
@@ -430,12 +626,101 @@ class ApiService {
       ...(status && { status }),
     });
     return this.request<PaginatedResponse<Tab>>(
+      `${API_CONFIG.USER_SERVICE}/users/groups/${groupId}/tabs?${params}`
+    );
+  }
+
+  async leaveGroup(groupId: string): Promise<void> {
+    await this.request<void>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}/leave`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteGroup(groupId: string): Promise<void> {
+    await this.request<void>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // Tab Service Methods
+  // --------------------------------------------------------------------------
+
+  async createTab(tabData: {
+    title: string;
+    description?: string;
+    category: TabCategory;
+    totalAmount: string;
+    currency: string;
+    participants: { userId: string; shareAmount?: string }[];
+    settlementWallet?: string;
+    settlementDeadline?: string;
+    penaltyRate?: number;
+    autoSettleEnabled?: boolean;
+  }): Promise<{ tab: Tab }> {
+    return this.request<{ tab: Tab }>(`${API_CONFIG.TAB_SERVICE}/tabs`, {
+      method: 'POST',
+      body: JSON.stringify(tabData),
+    });
+  }
+
+  async createGroupTab(
+    groupId: string,
+    tabData: {
+      title: string;
+      description?: string;
+      category: string;
+      totalAmount: string;
+      currency: string;
+      participants: { userId: string; shareAmount?: string }[];
+      settlementWallet?: string;
+      settlementDeadline?: string;
+      penaltyRate?: number;
+      autoSettleEnabled?: boolean;
+    }
+  ): Promise<{ tab: Tab }> {
+    return this.request<{ tab: Tab }>(
+      `${API_CONFIG.TAB_SERVICE}/tabs/group/${groupId}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(tabData),
+      }
+    );
+  }
+
+  async getTabs(
+    status?: 'OPEN' | 'SETTLED' | 'CANCELLED',
+    category?: TabCategory,
+    page = 1,
+    limit = 20
+  ): Promise<PaginatedResponse<Tab>> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...(status && { status }),
+      ...(category && { category }),
+    });
+    return this.request<PaginatedResponse<Tab>>(
       `${API_CONFIG.TAB_SERVICE}/tabs?${params}`
     );
   }
 
   async getTabById(tabId: string): Promise<Tab> {
     return this.request<Tab>(`${API_CONFIG.TAB_SERVICE}/tabs/${tabId}`);
+  }
+
+  async verifyTabParticipation(
+    tabId: string,
+    otpCode: string,
+    accept: boolean
+  ): Promise<void> {
+    await this.request<void>(
+      `${API_CONFIG.TAB_SERVICE}/tabs/${tabId}/verify-participation`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ otpCode, accept }),
+      }
+    );
   }
 
   async updateTab(
@@ -459,6 +744,12 @@ class ApiService {
     await this.request<void>(`${API_CONFIG.TAB_SERVICE}/tabs/${tabId}`, {
       method: 'DELETE',
     });
+  }
+
+  async getCategoryStats(): Promise<CategoryStats[]> {
+    return this.request<CategoryStats[]>(
+      `${API_CONFIG.TAB_SERVICE}/tabs/stats/categories`
+    );
   }
 
   // --------------------------------------------------------------------------
