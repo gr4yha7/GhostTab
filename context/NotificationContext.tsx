@@ -30,7 +30,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     loadUnreadCount();
 
     // Subscribe to WebSocket notifications
-    const unsubscribe: UnsubscribeFunction = wsService.subscribe((notification) => {
+    const unsubscribeFn: UnsubscribeFunction = wsService.subscribe((notification) => {
       setNotifications((prev) => [notification, ...prev]);
       setUnreadCount((prev) => prev + 1);
       
@@ -38,7 +38,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       showLocalNotification(notification);
     });
 
-    setUnsubscribe(unsubscribe);
+    setUnsubscribe(unsubscribeFn);
     return () => {
       if (unsubscribe) {
         unsubscribe();
