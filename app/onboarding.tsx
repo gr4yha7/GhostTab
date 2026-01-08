@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLogin } from "@privy-io/expo/ui";
 import { useIdentityToken } from "@privy-io/expo";
 import { useRouter } from 'expo-router';
+import SimpleLineIcons from '@expo/vector-icons/SimpleLineIcons';
 import { Icon } from "../components/Icon";
 import { Button } from "../components/Button";
 import { useAuth } from "@/context/AuthContext";
@@ -122,7 +123,7 @@ export default function OnboardingScreen() {
                   </View>
                 </View>
                 <View className="absolute top-8 left-12 right-0 bottom-0 bg-white/80 border border-white/50 rounded-2xl items-center justify-center shadow-lg transform rotate-6">
-                  <Icon name="eye-off" size={48} color="#4f46e5" />
+                  <SimpleLineIcons name="ghost" size={48} color="#4f46e5" />
                 </View>
               </View>
       
