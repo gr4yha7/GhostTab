@@ -5,9 +5,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
-import { useTab, useCancelTab, useChannelByTabId } from '../hooks/api';
+import { useTab, useCancelTab, useChannelByTabId, useResendOTP } from '../hooks/api';
 import { useAuth } from '../context/AuthContext';
 import { useError } from '../context/ErrorContext';
+import { TAB_CATEGORIES } from '@/services/api';
 
 export default function DetailScreen() {
   const router = useRouter();
@@ -15,15 +16,16 @@ export default function DetailScreen() {
   const { user } = useAuth();
   const { showError } = useError();
   const [showMenu, setShowMenu] = useState(false);
-  
+
   const { data: tab, isLoading, refetch } = useTab(id);
   const { data: channel } = useChannelByTabId(id);
   const cancelTabMutation = useCancelTab();
+  const resendOTPMutation = useResendOTP();
 
   const handleSettle = () => {
     if (!tab || !user) return;
 
-    const userParticipant = tab.participants.find(p => p.userId === user.id);
+    const userParticipant = tab.participants?.find(p => p.userId === user.id);
     if (!userParticipant) return;
 
     // Navigate to settlement screen with tab data
@@ -35,6 +37,19 @@ export default function DetailScreen() {
         title: tab.title,
       },
     });
+  };
+
+  const handleJoinTab = async () => {
+    if (!id) return;
+    try {
+      await resendOTPMutation.mutateAsync(id);
+      router.push({
+        pathname: '/accept-invite',
+        params: { tabId: id },
+      });
+    } catch (error) {
+      showError(error as Error);
+    }
   };
 
   const handleRemind = () => {
@@ -102,9 +117,11 @@ export default function DetailScreen() {
     );
   }
 
-  const isCreator = tab.creatorId === user?.id;
-  const userParticipant = tab.participants.find(p => p.userId === user?.id);
-  const canSettle = userParticipant && !userParticipant.paid;
+  const isCreator = (tab.creatorId || tab.creator?.id) === user?.id;
+  const userParticipant = tab.participants?.find(p => p.userId === user?.id);
+  const isVerified = userParticipant?.verified ?? false;
+  const canSettle = userParticipant && !userParticipant.paid && isVerified;
+  const canJoin = userParticipant && !userParticipant.paid && !isVerified;
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50">
@@ -117,7 +134,7 @@ export default function DetailScreen() {
             <Icon name="chevron-back" size={22} />
           </TouchableOpacity>
           <Text className="text-sm font-bold text-slate-900">
-            {tab.title} {tab.icon}
+            {tab.title} {TAB_CATEGORIES[tab.category]?.icon || ''}
           </Text>
           <TouchableOpacity
             onPress={() => setShowMenu(!showMenu)}
@@ -161,7 +178,7 @@ export default function DetailScreen() {
       <ScrollView className="flex-1">
         <View className="items-center justify-center py-10 bg-white border-b border-slate-100">
           <View className="w-20 h-20 bg-orange-50 rounded-3xl items-center justify-center mb-4 shadow-sm">
-            <Text className="text-4xl">{tab.icon || '💸'}</Text>
+            <Text className="text-4xl">{TAB_CATEGORIES[tab.category]?.icon || '👥'}</Text>
           </View>
           <Text className="text-3xl font-semibold text-slate-900 tracking-tight">
             ${tab.totalAmount}
@@ -171,29 +188,31 @@ export default function DetailScreen() {
           </Text>
           <View className="flex-row items-center gap-2 mt-2">
             <View
-              className={`px-2 py-1 rounded-lg ${
-                tab.status === 'OPEN'
-                  ? 'bg-emerald-50'
+              className="px-2 py-1 rounded-lg"
+              style={{
+                backgroundColor: tab.status === 'OPEN'
+                  ? '#ecfdf5' // emerald-50
                   : tab.status === 'SETTLED'
-                  ? 'bg-indigo-50'
-                  : 'bg-slate-50'
-              }`}
+                    ? '#f5f3ff' // indigo-50
+                    : '#f8fafc' // slate-50
+              }}
             >
               <Text
-                className={`text-[10px] font-bold uppercase ${
-                  tab.status === 'OPEN'
-                    ? 'text-emerald-600'
+                className="text-[10px] font-bold uppercase"
+                style={{
+                  color: tab.status === 'OPEN'
+                    ? '#059669' // emerald-600
                     : tab.status === 'SETTLED'
-                    ? 'text-indigo-600'
-                    : 'text-slate-600'
-                }`}
+                      ? '#4f46e5' // indigo-600
+                      : '#475569' // slate-600
+                }}
               >
                 {tab.status}
               </Text>
             </View>
-            {!tab.summary.allSettled && (
+            {tab.summary && !tab.summary.allSettled && (
               <Text className="text-xs text-slate-500">
-                ${tab.summary.remaining} remaining
+                ${parseFloat(tab.summary.remaining).toFixed(2)} remaining
               </Text>
             )}
           </View>
@@ -201,51 +220,46 @@ export default function DetailScreen() {
 
         <View className="p-6">
           <Text className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
-            Participants ({tab.participants.length})
+            Participants ({tab.participants?.length || 0})
           </Text>
 
           <View className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            {tab.participants.map((participant, index) => {
+            {tab.participants?.map((participant, index) => {
               const isCurrentUser = participant.userId === user?.id;
               const owes = !participant.paid;
 
               return (
                 <View
                   key={participant.userId}
-                  className={`p-4 flex-row items-center justify-between ${
-                    index !== tab.participants.length - 1 ? 'border-b border-slate-50' : ''
-                  }`}
+                  className="p-4 flex-row items-center justify-between"
+                  style={index !== (tab.participants?.length || 0) - 1 ? { borderBottomWidth: 1, borderBottomColor: '#f8fafc' } : {}}
                 >
                   <View className="flex-row items-center gap-3">
                     <Avatar
-                      src={
-                        participant.user.avatarUrl ||
-                        `https://api.dicebear.com/7.x/avataaars/png?seed=${participant.user.id}`
-                      }
+                      src={participant.user?.avatarUrl || ''}
                       size={40}
                     />
                     <View>
                       <Text className="text-sm font-semibold text-slate-900">
                         {isCurrentUser
                           ? 'You'
-                          : participant.user.username || participant.user.email?.split('@')[0]}
+                          : participant.user?.username || participant.user?.email?.split('@')[0] || 'Unknown'}
                       </Text>
                       <Text className="text-[10px] text-slate-400 font-medium uppercase">
                         {participant.paid
                           ? 'Settled'
                           : isCreator && !isCurrentUser
-                          ? 'Owes to tab'
-                          : isCurrentUser
-                          ? 'Owes to tab'
-                          : 'Pending'}
+                            ? 'Owes to tab'
+                            : isCurrentUser
+                              ? 'Owe tab'
+                              : 'Pending'}
                       </Text>
                     </View>
                   </View>
                   <View className="items-end gap-1">
                     <Text
-                      className={`font-semibold text-sm ${
-                        participant.paid ? 'text-emerald-500' : 'text-orange-500'
-                      }`}
+                      className="font-semibold text-sm"
+                      style={{ color: participant.paid ? '#10b981' : '#f97316' }}
                     >
                       ${participant.shareAmount}
                     </Text>
@@ -280,7 +294,7 @@ export default function DetailScreen() {
               <View className="flex-row justify-between mb-2">
                 <Text className="text-xs text-slate-500">Created by</Text>
                 <Text className="text-xs font-medium text-slate-900">
-                  {tab.creator.username || tab.creator.email?.split('@')[0]}
+                  {tab.creator?.username || tab.creator?.email?.split('@')[0] || 'Unknown'}
                 </Text>
               </View>
               <View className="flex-row justify-between mb-2">
@@ -293,6 +307,26 @@ export default function DetailScreen() {
                   })}
                 </Text>
               </View>
+              {tab.settlementDeadline && (
+                <View className="flex-row justify-between mb-2">
+                  <Text className="text-xs text-slate-500">Deadline</Text>
+                  <Text className="text-xs font-medium text-red-500">
+                    {new Date(tab.settlementDeadline).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                </View>
+              )}
+              {tab.settlementDeadline && tab.penaltyRate > 0 && (
+                <View className="flex-row justify-between mb-2">
+                  <Text className="text-xs text-slate-500">Penalty Rate</Text>
+                  <Text className="text-xs font-medium text-orange-500">
+                    {tab.penaltyRate}% / day
+                  </Text>
+                </View>
+              )}
               <View className="flex-row justify-between">
                 <Text className="text-xs text-slate-500">Currency</Text>
                 <Text className="text-xs font-medium text-slate-900">{tab.currency}</Text>
@@ -311,6 +345,20 @@ export default function DetailScreen() {
             >
               <Icon name="send" size={16} color="#fff" />
               <Text className="text-white font-medium text-sm">Settle Now</Text>
+            </TouchableOpacity>
+          ) : canJoin ? (
+            <TouchableOpacity
+              onPress={handleJoinTab}
+              className="flex-1 bg-indigo-600 py-3.5 rounded-xl flex-row items-center justify-center gap-2 shadow-lg"
+            >
+              {resendOTPMutation.isPending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Icon name="enter-outline" size={16} color="#fff" />
+                  <Text className="text-white font-medium text-sm">Join Tab</Text>
+                </>
+              )}
             </TouchableOpacity>
           ) : (
             <View className="flex-1 bg-emerald-50 py-3.5 rounded-xl flex-row items-center justify-center gap-2">
