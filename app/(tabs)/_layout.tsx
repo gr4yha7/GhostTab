@@ -34,23 +34,23 @@ export default function TabLayout() {
           options={{
             title: 'Home',
             tabBarIcon: ({ color, focused }) => (
-              <Icon 
-                name={focused ? 'home' : 'home-outline'} 
-                size={22} 
-                color={color} 
+              <Icon
+                name={focused ? 'home' : 'home-outline'}
+                size={22}
+                color={color}
               />
             ),
           }}
         />
         <Tabs.Screen
-          name="friends"
+          name="social"
           options={{
-            title: 'Friends',
+            title: 'Social',
             tabBarIcon: ({ color, focused }) => (
-              <Icon 
-                name={focused ? 'people' : 'people-outline'} 
-                size={22} 
-                color={color} 
+              <Icon
+                name={focused ? 'people' : 'people-outline'}
+                size={22}
+                color={color}
               />
             ),
           }}
@@ -60,23 +60,23 @@ export default function TabLayout() {
           options={{
             title: 'Insights',
             tabBarIcon: ({ color, focused }) => (
-              <Icon 
-                name={focused ? 'pie-chart' : 'pie-chart-outline'} 
-                size={22} 
-                color={color} 
+              <Icon
+                name={focused ? 'pie-chart' : 'pie-chart-outline'}
+                size={22}
+                color={color}
               />
             ),
           }}
         />
         <Tabs.Screen
-          name="settings"
+          name="profile"
           options={{
-            title: 'Settings',
+            title: 'Profile',
             tabBarIcon: ({ color, focused }) => (
-              <Icon 
-                name={focused ? 'settings' : 'settings-outline'} 
-                size={22} 
-                color={color} 
+              <Icon
+                name={focused ? 'person' : 'person-outline'}
+                size={22}
+                color={color}
               />
             ),
           }}
