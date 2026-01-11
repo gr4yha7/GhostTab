@@ -1,9 +1,10 @@
-import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, ScrollView, StyleSheet, Text, View, ActivityIndicator, Modal, Pressable, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useEffect, useRef } from "react";
 import { useLogin } from "@privy-io/expo/ui";
-import { useIdentityToken } from "@privy-io/expo";
 import { useRouter } from 'expo-router';
+import { useCreateWallet } from "@privy-io/expo/extended-chains";
+import { useIdentityToken, usePrivy } from "@privy-io/expo";
 import SimpleLineIcons from '@expo/vector-icons/SimpleLineIcons';
 import { Icon } from "../components/Icon";
 import { Button } from "../components/Button";
@@ -13,15 +14,23 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
-  const { login } = useLogin();
-  const { login: loginAuth } = useAuth();
+  const { login: privyLogin } = useLogin();
+  const { logout: privyLogout } = usePrivy();
+  const { isAuthenticated, loading, login } = useAuth();
   const { getIdentityToken } = useIdentityToken();
+  const { createWallet } = useCreateWallet();
+
+  console.log("isAuthenticated", isAuthenticated, "loading", loading);
 
   useEffect(() => {
     // Entry animations
@@ -64,33 +73,76 @@ export default function OnboardingScreen() {
     ).start();
   }, []);
 
-  const handleLogin = () => {
+  const showModal = (title: string, message: string) => {
+    setModalTitle(title);
+    setModalMessage(message);
+    setModalVisible(true);
+  };
+
+  const handleLogin = async () => {
+    if (isAuthenticated) {
+      router.replace("/(tabs)");
+      return;
+    }
     setError("");
     setIsLoading(true);
-    
-    login({ 
+    // await privyLogout();
+
+    privyLogin({
       loginMethods: [
-        "email", 
-        "twitter", 
-        "tiktok", 
-        "google", 
-        "apple", 
-        "github", 
-        "discord", 
+        "email",
+        "twitter",
+        "tiktok",
+        "google",
+        "apple",
+        "github",
+        "discord",
         "linkedin"
-      ] 
+      ]
     })
       .then(async (session) => {
+        const aptosAccount = session.user.linked_accounts.filter(
+          (account: any) => account.type === "wallet" && account.chain_type === "aptos"
+        );
+
+        // If no Aptos wallet, create one
+        if (aptosAccount.length === 0) {
+          try {
+            console.log("Creating Movement wallet during onboarding...");
+            setIsCreatingWallet(true);
+            await createWallet({ chainType: "aptos" });
+            showModal("Success", "Movement wallet created successfully!");
+          } catch (createErr) {
+            console.error("Failed to create wallet during onboarding:", createErr);
+            showModal(
+              "Wallet Creation Failed",
+              "Failed to initialize Movement wallet. Please try again."
+            );
+            setIsLoading(false);
+            return;
+          } finally {
+            setIsCreatingWallet(false);
+          }
+        }
+
         const token = await getIdentityToken();
         console.log("session", session, "token", token);
         if (!token) {
           setError("Failed to get access token.");
           setIsLoading(false);
+          return;
         }
-        await loginAuth(token as string);
+
+        await login(token as string);
         setIsLoading(false);
       })
-      .catch((err) => {
+      .catch(async (err) => {
+        console.error("Login Error:", err);
+        if (err.error?.message === "User is already logged in") {
+          setError("User is already logged in. Please logout first.");
+          await privyLogout();
+          return;
+        }
         setError(err.error?.message || "Failed to login. Please try again.");
         setIsLoading(false);
       });
@@ -101,17 +153,25 @@ export default function OnboardingScreen() {
     outputRange: ['0deg', '360deg'],
   });
 
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView showsVerticalScrollIndicator={false}>
         <Animated.View
-        style={[
-          styles.content,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }]
-          }
-        ]}>
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}>
           <View className="px-8 justify-between">
             <View className="flex-1 justify-center items-center">
               <View className="relative w-48 h-48 mb-10 items-center justify-center">
@@ -126,13 +186,13 @@ export default function OnboardingScreen() {
                   <SimpleLineIcons name="ghost" size={48} color="#4f46e5" />
                 </View>
               </View>
-      
+
               <Text className="text-3xl font-semibold text-slate-900 mb-3">GhostTab</Text>
               <Text className="text-slate-500 text-base text-center leading-relaxed max-w-[260px]">
                 Split expenses with friends instantly.{'\n'}Settle when you're ready.
               </Text>
             </View>
-      
+
             <View className="w-full space-y-3 my-8">
               <Button onPress={handleLogin} icon="wallet">Connect Wallet</Button>
               <Text className="text-xs text-center text-slate-400 mt-4">By continuing, you agree to our Terms of Service.</Text>
@@ -150,6 +210,40 @@ export default function OnboardingScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Initialization Overlay */}
+      {isCreatingWallet && (
+        <View className="absolute inset-0 bg-white/80 items-center justify-center z-50">
+          <View className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 items-center max-w-[80%]">
+            <ActivityIndicator size="large" color="#4f46e5" className="mb-4" />
+            <Text className="text-lg font-semibold text-slate-900 text-center">
+              Setting up your Movement Account
+            </Text>
+            <Text className="text-sm text-slate-500 text-center mt-2">
+              This will only take a moment...
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Feedback Modal */}
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <Pressable
+          className="flex-1 bg-slate-900/50 justify-center items-center p-6"
+          onPress={() => setModalVisible(false)}
+        >
+          <View className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <Text className="text-xl font-bold text-slate-900 mb-2">{modalTitle}</Text>
+            <Text className="text-slate-600 mb-6">{modalMessage}</Text>
+            <TouchableOpacity
+              onPress={() => setModalVisible(false)}
+              className="bg-indigo-600 py-3 rounded-2xl items-center"
+            >
+              <Text className="text-white font-semibold">Done</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
