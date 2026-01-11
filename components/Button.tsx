@@ -20,10 +20,10 @@ export const Button = ({ children, onPress, variant = 'primary', icon, className
   return (
     <TouchableOpacity 
       onPress={onPress}
-      className={`w-full py-3.5 rounded-xl flex-row items-center justify-center gap-2 active:opacity-80 ${variants[variant]} ${className}`}
+      className={`py-3.5 rounded-xl flex-row items-center justify-center gap-2 active:opacity-80 ${variants[variant]} ${className}`}
     >
       {icon && <Icon name={icon} size={18} color={textVariants[variant].includes('white') ? 'white' : '#64748b'} />}
-      <Text className={`font-medium text-sm ${textVariants[variant]}`}>{children}</Text>
+      <Text className={`font-medium text-md ${textVariants[variant]}`}>{children}</Text>
     </TouchableOpacity>
   );
 };
