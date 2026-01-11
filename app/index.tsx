@@ -1,13 +1,11 @@
 import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Constants from "expo-constants";
-import { usePrivy } from "@privy-io/expo";
 import OnboardingScreen from "./onboarding";
 import Dashboard from "./(tabs)";
 import { useAuth } from "@/context/AuthContext";
 
 export default function Index() {
-  const { user } = usePrivy();
   const { isAuthenticated } = useAuth();
   if ((Constants.expoConfig?.extra?.privyAppId as string).length !== 25) {
     return (
@@ -43,6 +41,5 @@ export default function Index() {
       </SafeAreaView>
     );
   }
-  return !user ? <OnboardingScreen /> : <Dashboard />;
-  // return !isAuthenticated ? <OnboardingScreen /> : <Dashboard />;
+  return !isAuthenticated ? <OnboardingScreen /> : <Dashboard />;
 }

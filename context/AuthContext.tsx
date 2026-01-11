@@ -25,9 +25,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const { showError } = useError();
 
-  // useEffect(() => {
-  //   loadStoredAuth();
-  // }, []);
+  useEffect(() => {
+    loadStoredAuth();
+  }, []);
 
   useEffect(() => {
     if (token) {
@@ -39,42 +39,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [token]);
 
-  // const loadStoredAuth = async () => {
-  //   try {
-  //     const [storedToken, storedUser, storedStreamToken] = await Promise.all([
-  //       apiService.getStoredToken(),
-  //       apiService.getStoredUser(),
-  //       apiService.getStreamToken(),
-  //     ]);
+  const loadStoredAuth = async () => {
+    try {
+      const [storedToken, storedUser, storedStreamToken] = await Promise.all([
+        apiService.getStoredToken(),
+        apiService.getStoredUser(),
+        apiService.getStreamToken(),
+      ]);
 
-  //     if (storedToken && storedUser) {
-  //       setToken(storedToken);
-  //       setUser(storedUser);
-  //       setStreamToken(storedStreamToken);
+      if (storedToken && storedUser) {
+        setToken(storedToken);
+        setUser(storedUser);
+        setStreamToken(storedStreamToken);
 
-  //       // Verify token is still valid by fetching user profile
-  //       try {
-  //         const freshUser = await apiService.getMe();
-  //         setUser(freshUser);
-  //       } catch (error) {
-  //         // Token expired, clear auth
-  //         await clearAuth();
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.error('Failed to load stored auth', error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+        // Verify token is still valid by fetching user profile
+        try {
+          const freshUser = await apiService.getMe();
+          setUser(freshUser);
+        } catch (error) {
+          // Token expired, clear auth
+          await clearAuth();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load stored auth', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const login = async (privyToken: string) => {
     try {
       setLoading(true);
-      const { token: newToken, user: newUser, streamToken: newStreamToken } = 
+      const { user: newUser, streamToken: newStreamToken } =
         await apiService.login(privyToken);
-      
-      setToken(newToken);
+      // console.log('privy token', privyToken);
+      // console.log('new user', newUser);
+      // console.log('new stream token', newStreamToken);
+
+      setToken(privyToken);
       setUser(newUser);
       setStreamToken(newStreamToken);
     } catch (error) {
