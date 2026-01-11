@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +20,7 @@ import {
   useSendMessage,
   useMarkChannelAsRead,
   useTab,
+  useChannels,
 } from '../hooks/api';
 import { useAuth } from '../context/AuthContext';
 import { useError } from '../context/ErrorContext';
@@ -34,10 +36,12 @@ export default function ChatScreen() {
   const [messageText, setMessageText] = useState('');
 
   const { data: tab } = useTab(tabId);
+  const { data: channelsData } = useChannels();
   const { data: messagesData, isLoading, refetch } = useChannelMessages(channelId);
   const sendMessageMutation = useSendMessage();
   const markAsReadMutation = useMarkChannelAsRead();
 
+  const channel = channelsData?.channels.find(c => c.channelId === channelId);
   const messages = messagesData?.messages || [];
 
   useEffect(() => {
@@ -76,30 +80,26 @@ export default function ChatScreen() {
   };
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const isCurrentUser = item.userId === user?.id;
+    const isCurrentUser = item.userId === user?.id || item.userId === user?.walletAddress;
     const showAvatar =
       index === messages.length - 1 ||
       messages[index + 1]?.userId !== item.userId;
     const showTimestamp =
       index === messages.length - 1 ||
       new Date(messages[index + 1]?.createdAt).getTime() -
-        new Date(item.createdAt).getTime() >
-        300000; // 5 minutes
+      new Date(item.createdAt).getTime() >
+      300000; // 5 minutes
 
     return (
       <View
-        className={`flex-row ${
-          isCurrentUser ? 'justify-end' : 'justify-start'
-        } mb-2 px-4`}
+        className={`flex-row ${isCurrentUser ? 'justify-end' : 'justify-start'
+          } mb-2 px-4`}
       >
         {!isCurrentUser && (
           <View className="mr-2">
             {showAvatar ? (
               <Avatar
-                src={
-                  item.user.avatarUrl ||
-                  `https://api.dicebear.com/7.x/avataaars/png?seed=${item.user.id}`
-                }
+                src={item.user.avatarUrl || ''}
                 size={32}
               />
             ) : (
@@ -115,16 +115,14 @@ export default function ChatScreen() {
             </Text>
           )}
           <View
-            className={`rounded-2xl px-4 py-2.5 ${
-              isCurrentUser
-                ? 'bg-indigo-600'
-                : 'bg-white border border-slate-100'
-            }`}
+            className={`rounded-2xl px-4 py-2.5 ${isCurrentUser
+              ? 'bg-indigo-600'
+              : 'bg-white border border-slate-100'
+              }`}
           >
             <Text
-              className={`text-sm ${
-                isCurrentUser ? 'text-white' : 'text-slate-900'
-              }`}
+              className={`text-sm ${isCurrentUser ? 'text-white' : 'text-slate-900'
+                }`}
             >
               {item.text}
             </Text>
@@ -151,71 +149,75 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <View className="flex-1 bg-slate-50">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <View className="px-4 py-3 bg-white border-b border-slate-100 flex-row items-center justify-between">
-          <View className="flex-row items-center gap-3 flex-1">
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="w-8 h-8 rounded-full bg-slate-50 items-center justify-center"
-            >
-              <Icon name="chevron-back" size={20} />
-            </TouchableOpacity>
+        <SafeAreaView edges={['top']} className="bg-white border-b border-slate-100">
+          <View className="px-4 py-3 flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3 flex-1">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="w-8 h-8 rounded-full bg-slate-50 items-center justify-center"
+              >
+                <Icon name="chevron-back" size={20} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: '/detail', params: { id: tabId } })}
+                className="flex-row items-center gap-2 flex-1"
+              >
+                <View className="w-10 h-10 bg-orange-50 rounded-xl items-center justify-center">
+                  <Text className="text-lg">{'💬'}</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-slate-900">
+                    {tab?.title || channel?.name || 'Tab Chat'}
+                  </Text>
+                  <Text className="text-xs text-slate-400">
+                    {(tab?.participants?.length ?? channel?.memberCount ?? 0)} participants
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
               onPress={() => router.push({ pathname: '/detail', params: { id: tabId } })}
-              className="flex-row items-center gap-2 flex-1"
+              className="w-8 h-8 rounded-full bg-slate-50 items-center justify-center"
             >
-              <View className="w-10 h-10 bg-orange-50 rounded-xl items-center justify-center">
-                <Text className="text-lg">{tab?.icon || '💬'}</Text>
-              </View>
-              <View className="flex-1">
-                <Text className="text-sm font-semibold text-slate-900">
-                  {tab?.title || 'Tab Chat'}
-                </Text>
-                <Text className="text-xs text-slate-400">
-                  {tab?.participants.length || 0} participants
-                </Text>
-              </View>
+              <Icon name="information-circle-outline" size={20} />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            onPress={() => router.push({ pathname: '/detail', params: { id: tabId } })}
-            className="w-8 h-8 rounded-full bg-slate-50 items-center justify-center"
-          >
-            <Icon name="information-circle-outline" size={20} />
-          </TouchableOpacity>
+        </SafeAreaView>
+
+        <View className="flex-1">
+          {messages.length === 0 ? (
+            <View className="flex-1 items-center justify-center px-6">
+              <View className="w-20 h-20 bg-indigo-50 rounded-full items-center justify-center mb-4">
+                <Icon name="chatbubbles-outline" size={32} color="#4f46e5" />
+              </View>
+              <Text className="text-slate-400 text-center text-base mb-2">
+                No messages yet
+              </Text>
+              <Text className="text-slate-400 text-center text-sm">
+                Start the conversation about this tab
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingVertical: 16 }}
+              inverted={false}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            />
+          )}
         </View>
 
-        {messages.length === 0 ? (
-          <View className="flex-1 items-center justify-center px-6">
-            <View className="w-20 h-20 bg-indigo-50 rounded-full items-center justify-center mb-4">
-              <Icon name="chatbubbles-outline" size={32} color="#4f46e5" />
-            </View>
-            <Text className="text-slate-400 text-center text-base mb-2">
-              No messages yet
-            </Text>
-            <Text className="text-slate-400 text-center text-sm">
-              Start the conversation about this tab
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            renderItem={renderMessage}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingVertical: 16 }}
-            inverted={false}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-          />
-        )}
-
-        <View className="px-4 py-3 bg-white border-t border-slate-100">
-          <View className="flex-row items-center gap-2">
+        <View className="bg-white border-t border-slate-100">
+          <View className="px-4 py-3 flex-row items-center gap-2">
             <View className="flex-1 bg-slate-50 rounded-2xl flex-row items-center px-4 py-2">
               <TextInput
                 value={messageText}
@@ -230,11 +232,10 @@ export default function ChatScreen() {
             <TouchableOpacity
               onPress={handleSend}
               disabled={!messageText.trim() || sendMessageMutation.isPending}
-              className={`w-10 h-10 rounded-full items-center justify-center ${
-                messageText.trim() && !sendMessageMutation.isPending
-                  ? 'bg-indigo-600'
-                  : 'bg-slate-200'
-              }`}
+              className={`w-10 h-10 rounded-full items-center justify-center ${messageText.trim() && !sendMessageMutation.isPending
+                ? 'bg-indigo-600'
+                : 'bg-slate-200'
+                }`}
             >
               {sendMessageMutation.isPending ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -247,8 +248,9 @@ export default function ChatScreen() {
               )}
             </TouchableOpacity>
           </View>
+          <SafeAreaView edges={['bottom']} />
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
