@@ -7,7 +7,7 @@ export default () => ({
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
-    scheme: "mahito",
+    scheme: "ghosttab",
     userInterfaceStyle: "automatic",
     splash: {
       image: "./assets/images/splash.png",
@@ -17,7 +17,7 @@ export default () => ({
     ios: {
       usesAppleSignIn: true,
       supportsTablet: true,
-      bundleIdentifier: "dev.privy.mahito",
+      bundleIdentifier: "dev.privy.ghosttab",
       associatedDomains: ["webcredentials:<your-associated-domain>"],
       infoPlist: {
         NSAppTransportSecurity: {
@@ -30,7 +30,7 @@ export default () => ({
         foregroundImage: "./assets/images/adaptive-icon.png",
         backgroundColor: "#ffffff"
       },
-      package: "dev.privy.mahito"
+      package: "dev.privy.ghosttab"
     },
     web: {
       favicon: "./assets/images/favicon.png",
