@@ -1,14 +1,18 @@
-// app/settle.tsx
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePrivy } from '@privy-io/expo';
+import { useSignRawHash } from "@privy-io/expo/extended-chains";
 import { Icon } from '../components/Icon';
-import { useSettleTab } from '../hooks/api';
+import { useSettleTab, useGenerateSettlementHash, useSubmitSettlement } from '../hooks/api';
 import { useError } from '../context/ErrorContext';
 
 export default function SettleScreen() {
   const router = useRouter();
+  const { user } = usePrivy();
+  const { signRawHash } = useSignRawHash();
+
   const { tabId, amount, title } = useLocalSearchParams<{
     tabId: string;
     amount: string;
@@ -16,45 +20,91 @@ export default function SettleScreen() {
   }>();
   const { showError } = useError();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [status, setStatus] = useState<string>('');
+
   const settleTabMutation = useSettleTab();
+  const generateHashMutation = useGenerateSettlementHash();
+  const submitSettlementMutation = useSubmitSettlement();
 
   const handleSettle = async () => {
     try {
+      const movementWallet = user?.linked_accounts?.find(
+        (account: any) => account.type === "wallet" && account.chain_type === "aptos"
+      ) as any;
+
+      if (!movementWallet) {
+        throw new Error('Movement wallet not found. Please ensure you have a wallet set up.');
+      }
+
       setIsProcessing(true);
 
-      // In a real app, this would:
-      // 1. Connect to Privy wallet
-      // 2. Initiate Movement Network transaction
-      // 3. Wait for transaction confirmation
-      // 4. Send tx hash to backend
+      // Step 1: Generate Hash from Backend
+      setStatus('Generating transaction...');
+      const numericalAmount = parseFloat(amount.replace(/[^0-9.]/g, ''));
+      // BlockchainService uses it directly in functionArguments. 
+      // Standard USDC is 6 decimals.
+      const amountInBaseUnits = Math.round(numericalAmount * 1_000_000);
 
-      // For now, we'll simulate the process
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const hashData = await generateHashMutation.mutateAsync({
+        sender: movementWallet.address,
+        amount: amountInBaseUnits,
+      });
 
-      // Mock transaction hash (in production, this comes from Movement Network)
-      const mockTxHash = `0x${Math.random().toString(16).substring(2, 66)}`;
+      if (!hashData.success) {
+        throw new Error('Failed to generate settlement hash');
+      }
 
-      // Call backend to record settlement
+      // Step 2: Sign Hash with Privy
+      setStatus('Waiting for signature...');
+      const { signature } = await signRawHash({
+        address: movementWallet.address,
+        chainType: "aptos",
+        hash: hashData.hash as `0x${string}`,
+      });
+
+      // Step 3: Submit Signed Transaction to Backend
+      setStatus('Submitting to Movement...');
+      const submitResult = await submitSettlementMutation.mutateAsync({
+        rawTxnHex: hashData.rawTxnHex,
+        publicKey: movementWallet.public_key || '',
+        signature,
+      });
+
+      if (!submitResult.success) {
+        throw new Error(`Transaction failed: ${submitResult.vmStatus || 'Unknown error'}`);
+      }
+
+      const txHash = submitResult.transactionHash;
+
+      // Step 4: Record Settlement in Database
+      setStatus('Finalizing payment...');
       await settleTabMutation.mutateAsync({
         tabId,
-        txHash: mockTxHash,
+        txHash,
         amount,
       });
 
       setIsProcessing(false);
+      setStatus('');
 
       Alert.alert(
         'Payment Successful! 🎉',
         `You've settled $${amount} for "${title}"`,
         [
           {
+            text: 'View Transaction',
+            onPress: () => Linking.openURL(`https://explorer.movementnetwork.xyz/txn/${txHash}?network=bardock+testnet`),
+          },
+          {
             text: 'Done',
-            onPress: () => router.back(),
+            onPress: () => router.replace('/(tabs)'),
           },
         ]
       );
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Settlement Error:', error);
       setIsProcessing(false);
+      setStatus('');
       showError(error as Error);
     }
   };
@@ -103,7 +153,7 @@ export default function SettleScreen() {
                   Secure Payment
                 </Text>
                 <Text className="text-xs text-slate-500">
-                  Your payment is secured on the Movement Network blockchain
+                  Your payment is secured on the Movement Network
                 </Text>
               </View>
             </View>
@@ -124,14 +174,14 @@ export default function SettleScreen() {
 
             <View className="flex-row items-start gap-3">
               <View className="w-10 h-10 bg-amber-50 rounded-full items-center justify-center">
-                <Icon name="eye-off" size={20} color="#f59e0b" />
+                <Icon name="flame" size={20} color="#f59e0b" />
               </View>
               <View className="flex-1">
                 <Text className="text-sm font-semibold text-slate-900 mb-1">
-                  Privacy First
+                  Sponsored Gas Fees
                 </Text>
                 <Text className="text-xs text-slate-500">
-                  Only transaction participants can view details
+                  Shinami sponsors your transactions for free
                 </Text>
               </View>
             </View>
@@ -149,14 +199,15 @@ export default function SettleScreen() {
           <TouchableOpacity
             onPress={handleSettle}
             disabled={isProcessing}
-            className={`w-full py-4 rounded-2xl shadow-lg mb-3 ${
-              isProcessing ? 'bg-indigo-400' : 'bg-indigo-600'
-            }`}
+            className={`w-full py-4 rounded-2xl shadow-lg mb-3 ${isProcessing ? 'bg-indigo-400' : 'bg-indigo-600'
+              }`}
           >
             {isProcessing ? (
-              <View className="flex-row items-center justify-center gap-2">
+              <View className="items-center justify-center">
                 <ActivityIndicator color="#fff" />
-                <Text className="text-white font-semibold text-base">Processing...</Text>
+                {status && (
+                  <Text className="text-white font-medium text-xs mt-1">{status}</Text>
+                )}
               </View>
             ) : (
               <Text className="text-white font-semibold text-base text-center">
