@@ -4,7 +4,7 @@ import { Text, TouchableOpacity, ScrollView, View, ActivityIndicator, RefreshCon
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Icon } from '../components/Icon';
-import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead } from '../hooks/api';
+import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead, useAcceptFriendRequest, useDeclineFriendRequest } from '../hooks/api';
 import { Notification } from '../services/api';
 
 export default function NotificationsScreen() {
@@ -12,6 +12,9 @@ export default function NotificationsScreen() {
   const { data: notificationsData, isLoading, refetch, isRefetching } = useNotifications();
   const markAsReadMutation = useMarkNotificationAsRead();
   const markAllAsReadMutation = useMarkAllNotificationsAsRead();
+  const acceptFriendMutation = useAcceptFriendRequest();
+  const declineFriendMutation = useDeclineFriendRequest();
+  const [actedNotifications, setActedNotifications] = React.useState<Record<string, 'ACCEPTED' | 'DECLINED'>>({});
 
   const notifications = notificationsData?.data || [];
   const unreadNotifications = notifications.filter((n) => !n.read);
@@ -33,6 +36,26 @@ export default function NotificationsScreen() {
     }
   };
 
+  const handleAcceptFriend = async (friendshipId: string, notificationId: string) => {
+    try {
+      await acceptFriendMutation.mutateAsync(friendshipId);
+      setActedNotifications(prev => ({ ...prev, [notificationId]: 'ACCEPTED' }));
+      await handleMarkAsRead(notificationId);
+    } catch (error) {
+      console.error('Failed to accept friend request', error);
+    }
+  };
+
+  const handleDeclineFriend = async (friendshipId: string, notificationId: string) => {
+    try {
+      await declineFriendMutation.mutateAsync(friendshipId);
+      setActedNotifications(prev => ({ ...prev, [notificationId]: 'DECLINED' }));
+      await handleMarkAsRead(notificationId);
+    } catch (error) {
+      console.error('Failed to decline friend request', error);
+    }
+  };
+
   const handleNotificationPress = (notification: Notification) => {
     // Mark as read
     if (!notification.read) {
@@ -42,11 +65,18 @@ export default function NotificationsScreen() {
     // Navigate based on notification type
     switch (notification.type) {
       case 'TAB_CREATED':
+        if (notification.data?.tabId) {
+          router.push({
+            pathname: '/accept-invite',
+            params: { tabId: notification.data.tabId },
+          });
+        }
+        break;
       case 'TAB_UPDATED':
       case 'PAYMENT_RECEIVED':
       case 'PAYMENT_REMINDER':
       case 'TAB_SETTLED':
-        if (notification.data.tabId) {
+        if (notification.data?.tabId) {
           router.push({
             pathname: '/detail',
             params: { id: notification.data.tabId },
@@ -55,10 +85,10 @@ export default function NotificationsScreen() {
         break;
       case 'FRIEND_REQUEST':
       case 'FRIEND_ACCEPTED':
-        router.push('/(tabs)/friends');
+        router.push('/(tabs)/social');
         break;
       case 'MESSAGE_RECEIVED':
-        if (notification.data.channelId) {
+        if (notification.data?.channelId) {
           router.push({
             pathname: '/chat',
             params: {
@@ -72,18 +102,18 @@ export default function NotificationsScreen() {
   };
 
   const getNotificationIcon = (type: string) => {
-    const iconConfig: Record<string, { name: string; color: string; bg: string }> = {
-      FRIEND_REQUEST: { name: 'person-add-outline', color: '#4f46e5', bg: 'bg-indigo-50' },
-      FRIEND_ACCEPTED: { name: 'people-outline', color: '#10b981', bg: 'bg-emerald-50' },
-      TAB_CREATED: { name: 'add-circle-outline', color: '#4f46e5', bg: 'bg-indigo-50' },
-      TAB_UPDATED: { name: 'create-outline', color: '#f59e0b', bg: 'bg-amber-50' },
-      PAYMENT_RECEIVED: { name: 'cash-outline', color: '#10b981', bg: 'bg-emerald-50' },
-      PAYMENT_REMINDER: { name: 'alarm-outline', color: '#f59e0b', bg: 'bg-amber-50' },
-      TAB_SETTLED: { name: 'checkmark-circle-outline', color: '#10b981', bg: 'bg-emerald-50' },
-      MESSAGE_RECEIVED: { name: 'chatbubble-outline', color: '#4f46e5', bg: 'bg-indigo-50' },
+    const iconConfig: Record<string, { name: string; color: string; bgColor: string }> = {
+      FRIEND_REQUEST: { name: 'person-add-outline', color: '#4f46e5', bgColor: '#f5f3ff' },
+      FRIEND_ACCEPTED: { name: 'people-outline', color: '#10b981', bgColor: '#ecfdf5' },
+      TAB_CREATED: { name: 'add-circle-outline', color: '#4f46e5', bgColor: '#f5f3ff' },
+      TAB_UPDATED: { name: 'create-outline', color: '#f59e0b', bgColor: '#fffbeb' },
+      PAYMENT_RECEIVED: { name: 'cash-outline', color: '#10b981', bgColor: '#ecfdf5' },
+      PAYMENT_REMINDER: { name: 'alarm-outline', color: '#f59e0b', bgColor: '#fffbeb' },
+      TAB_SETTLED: { name: 'checkmark-circle-outline', color: '#10b981', bgColor: '#ecfdf5' },
+      MESSAGE_RECEIVED: { name: 'chatbubble-outline', color: '#4f46e5', bgColor: '#f5f3ff' },
     };
 
-    return iconConfig[type] || { name: 'notifications-outline', color: '#64748b', bg: 'bg-slate-50' };
+    return iconConfig[type] || { name: 'notifications-outline', color: '#64748b', bgColor: '#f8fafc' };
   };
 
   const formatTime = (dateString: string) => {
@@ -121,17 +151,16 @@ export default function NotificationsScreen() {
           </TouchableOpacity>
           <Text className="text-sm font-semibold text-slate-900">Notifications</Text>
           <TouchableOpacity
-            onPress={handleClearAll}
-            disabled={markAllAsReadMutation.isPending || unreadNotifications.length === 0}
+            disabled={markAllAsReadMutation.isPending || notifications.some(n => !n.read) === false}
             className="px-3 py-1.5 rounded-lg"
           >
             {markAllAsReadMutation.isPending ? (
               <ActivityIndicator size="small" color="#4f46e5" />
             ) : (
               <Text
-                className={`text-xs font-medium ${
-                  unreadNotifications.length === 0 ? 'text-slate-300' : 'text-indigo-600'
-                }`}
+                className="text-xs font-medium"
+                style={{ color: notifications.some(n => !n.read) === false ? '#cbd5e1' : '#4f46e5' }}
+                onPress={handleClearAll}
               >
                 Clear all
               </Text>
@@ -171,17 +200,53 @@ export default function NotificationsScreen() {
                         onPress={() => handleNotificationPress(notification)}
                         className="p-4 flex-row items-start gap-3 border-b border-slate-100 bg-indigo-50/30"
                       >
-                        <View className={`w-10 h-10 rounded-full ${config.bg} items-center justify-center`}>
+                        <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: config.bgColor }}>
                           <Icon name={config.name as any} size={20} color={config.color} />
                         </View>
                         <View className="flex-1">
                           <Text className="text-sm text-slate-900 font-medium">{notification.title}</Text>
                           <Text className="text-xs text-slate-500 mt-0.5">{notification.body}</Text>
+                          {notification.type === 'FRIEND_REQUEST' && notification.data?.friendshipId && (
+                            <View className="mt-2">
+                              {actedNotifications[notification.id] ? (
+                                <View className="bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                                  <Text className="text-[10px] text-slate-500 font-medium italic">
+                                    You {actedNotifications[notification.id] === 'ACCEPTED' ? 'accepted' : 'declined'} the request
+                                  </Text>
+                                </View>
+                              ) : (
+                                <View className="flex-row gap-2">
+                                  <TouchableOpacity
+                                    onPress={() => handleAcceptFriend(notification.data!.friendshipId, notification.id)}
+                                    disabled={acceptFriendMutation.isPending}
+                                    className="bg-indigo-600 px-3 py-1.5 rounded-lg"
+                                  >
+                                    <Text className="text-white text-[10px] font-bold">Accept</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() => handleDeclineFriend(notification.data!.friendshipId, notification.id)}
+                                    disabled={declineFriendMutation.isPending}
+                                    className="bg-slate-100 px-3 py-1.5 rounded-lg"
+                                  >
+                                    <Text className="text-slate-600 text-[10px] font-bold">Decline</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              )}
+                            </View>
+                          )}
                           <Text className="text-[10px] text-slate-400 mt-1">
                             {formatTime(notification.createdAt)}
                           </Text>
                         </View>
-                        <View className="w-2 h-2 rounded-full bg-indigo-500 mt-2" />
+                        <View className="items-center justify-center pt-1">
+                          <TouchableOpacity
+                            onPress={() => handleMarkAsRead(notification.id)}
+                            className="bg-indigo-50 w-7 h-7 rounded-full items-center justify-center mb-2"
+                          >
+                            <Icon name="checkmark-done" size={14} color="#4f46e5" />
+                          </TouchableOpacity>
+                          <View className="w-2 h-2 rounded-full bg-indigo-500" />
+                        </View>
                       </TouchableOpacity>
                     );
                   })}
@@ -201,12 +266,40 @@ export default function NotificationsScreen() {
                         onPress={() => handleNotificationPress(notification)}
                         className="p-4 flex-row items-start gap-3 border-b border-slate-100 bg-white"
                       >
-                        <View className={`w-10 h-10 rounded-full ${config.bg} items-center justify-center`}>
+                        <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: config.bgColor }}>
                           <Icon name={config.name as any} size={20} color={config.color} />
                         </View>
                         <View className="flex-1">
                           <Text className="text-sm text-slate-900">{notification.title}</Text>
                           <Text className="text-xs text-slate-500 mt-0.5">{notification.body}</Text>
+                          {notification.type === 'FRIEND_REQUEST' && notification.data?.friendshipId && (
+                            <View className="mt-2">
+                              {actedNotifications[notification.id] ? (
+                                <View className="bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                                  <Text className="text-[10px] text-slate-500 font-medium italic">
+                                    You {actedNotifications[notification.id] === 'ACCEPTED' ? 'accepted' : 'declined'} the request
+                                  </Text>
+                                </View>
+                              ) : (
+                                <View className="flex-row gap-2">
+                                  <TouchableOpacity
+                                    onPress={() => handleAcceptFriend(notification.data!.friendshipId, notification.id)}
+                                    disabled={acceptFriendMutation.isPending}
+                                    className="bg-indigo-600 px-3 py-1.5 rounded-lg"
+                                  >
+                                    <Text className="text-white text-[10px] font-bold">Accept</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() => handleDeclineFriend(notification.data!.friendshipId, notification.id)}
+                                    disabled={declineFriendMutation.isPending}
+                                    className="bg-slate-100 px-3 py-1.5 rounded-lg"
+                                  >
+                                    <Text className="text-slate-600 text-[10px] font-bold">Decline</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              )}
+                            </View>
+                          )}
                           <Text className="text-[10px] text-slate-400 mt-1">
                             {formatTime(notification.createdAt)}
                           </Text>
