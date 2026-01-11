@@ -1317,7 +1317,7 @@ Suggested fix (if any)
 
 We'll respond within 48 hours and keep you updated on the fix.
 
-Roadmap
+## Roadmap
 Phase 1: Testnet Launch ✅ (Current)
 
  Core tab creation and settlement
@@ -1349,7 +1349,7 @@ Phase 4: Expansion (Q3 2026)
  GhostTab Marketing and Growth Expansion
 
 
-FAQ
+## FAQ
 Q: Do I need cryptocurrency to use GhostTab?
 A: You only need USDC to settle tabs. All gas fees are sponsored by Shinami, so you don't need native Movement tokens.
 Q: What happens if I lose my phone?
@@ -1363,7 +1363,7 @@ A: Tab amounts are private. Only trust score aggregates (% on-time, etc.) are pu
 Q: What if someone refuses to pay?
 A: GhostTab uses social pressure (trust scores, notifications) rather than forced liquidation. Persistent non-payers will have poor trust scores visible to all users.
 
-License
+## License
 MIT License
 Copyright (c) 2025 GhostTab
 Permission is hereby granted, free of charge, to any person obtaining a copy
