@@ -25,6 +25,7 @@ export interface User {
 
 export interface TrustTier {
   tier: 'Excellent' | 'Good' | 'Fair' | 'Poor';
+  label: string;
   color: string;
   benefits: string[];
 }
@@ -51,7 +52,7 @@ export interface Tab {
   updatedAt: string;
 }
 
-export type TabCategory = 
+export type TabCategory =
   | 'DINING'
   | 'TRAVEL'
   | 'GROCERIES'
@@ -265,6 +266,7 @@ class ApiService {
   }
 
   async setToken(token: string): Promise<void> {
+    // console.log('Setting token:', token);
     this.token = token;
     await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
   }
@@ -360,7 +362,7 @@ class ApiService {
   //       // Token expired, get fresh one from Privy
   //       const freshToken = await getAccessToken();
   //       this.setToken(freshToken);
-        
+
   //       // Retry request
   //       return this.requestWithRetry(url, options, retries - 1);
   //     }
@@ -373,13 +375,11 @@ class ApiService {
   // --------------------------------------------------------------------------
 
   async login(privyToken: string): Promise<{
-    token: string;
     user: User;
     streamToken: string;
     isNewUser: boolean;
   }> {
     const data = await this.request<{
-      token: string;
       user: User;
       streamToken: string;
       isNewUser: boolean;
@@ -388,25 +388,25 @@ class ApiService {
       body: JSON.stringify({ privyToken }),
     });
 
-    await this.setToken(data.token);
+    await this.setToken(privyToken);
     await this.setUser(data.user);
     await this.setStreamToken(data.streamToken);
 
     return data;
   }
 
-  async refreshToken(): Promise<string> {
-    const data = await this.request<{ token: string }>(
-      `${API_CONFIG.AUTH_SERVICE}/auth/refresh`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ token: this.token }),
-      }
-    );
+  // async refreshToken(): Promise<string> {
+  //   const data = await this.request<{ token: string }>(
+  //     `${API_CONFIG.AUTH_SERVICE}/auth/refresh`,
+  //     {
+  //       method: 'POST',
+  //       body: JSON.stringify({ token: this.token }),
+  //     }
+  //   );
 
-    await this.setToken(data.token);
-    return data.token;
-  }
+  //   await this.setToken(data.token);
+  //   return data.token;
+  // }
 
   async getMe(): Promise<User> {
     const data = await this.request<{ user: User }>(
@@ -421,14 +421,16 @@ class ApiService {
   // --------------------------------------------------------------------------
 
   async getUserProfile(): Promise<User> {
-    return this.request<User>(`${API_CONFIG.USER_SERVICE}/users/profile`);
+    const response = await this.request<{ profile: User }>(`${API_CONFIG.USER_SERVICE}/users/profile`);
+    return response.profile;
   }
 
   async updateUserProfile(updates: Partial<User>): Promise<User> {
-    return this.request<User>(`${API_CONFIG.USER_SERVICE}/users/profile`, {
+    const response = await this.request<{ profile: User }>(`${API_CONFIG.USER_SERVICE}/users/profile`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
+    return response.profile;
   }
 
   async updateAutoSettle(
@@ -462,8 +464,8 @@ class ApiService {
     );
   }
 
-  async getFriendRequests(): Promise<Friendship[]> {
-    return this.request<Friendship[]>(
+  async getFriendRequests(): Promise<PaginatedResponse<Friendship>> {
+    return this.request<PaginatedResponse<Friendship>>(
       `${API_CONFIG.USER_SERVICE}/users/friends/requests`
     );
   }
@@ -483,15 +485,11 @@ class ApiService {
     });
   }
 
-  async acceptFriendRequest(
-    friendshipId: string,
-    otpCode?: string
-  ): Promise<Friendship> {
+  async acceptFriendRequest(friendshipId: string): Promise<Friendship> {
     return this.request<Friendship>(
       `${API_CONFIG.USER_SERVICE}/users/friends/${friendshipId}/accept`,
       {
         method: 'POST',
-        body: JSON.stringify({ otpCode }),
       }
     );
   }
@@ -525,27 +523,35 @@ class ApiService {
   }
 
   async getTrustTier(score: number): Promise<TrustTier> {
-    if (score >= 120) {
+    // Explicitly cast to number and log for debugging
+    const numericScore = Number(score);
+    console.log(`[TrustScore] Calculating tier for score: ${numericScore} (original: ${score}, type: ${typeof score})`);
+
+    if (numericScore >= 120) {
       return {
         tier: 'Excellent',
+        label: 'Settles instantly',
         color: '#10b981',
         benefits: ['Lower penalty rates', 'Priority support', 'Extended deadlines'],
       };
-    } else if (score >= 100) {
+    } else if (numericScore >= 100) {
       return {
         tier: 'Good',
+        label: 'Reliable payer',
         color: '#3b82f6',
         benefits: ['Standard rates', 'Normal deadlines'],
       };
-    } else if (score >= 70) {
+    } else if (numericScore >= 70) {
       return {
         tier: 'Fair',
+        label: 'Occasional delays',
         color: '#f59e0b',
         benefits: ['Standard rates', 'Payment reminders'],
       };
     } else {
       return {
         tier: 'Poor',
+        label: 'Frequently late',
         color: '#ef4444',
         benefits: ['Higher penalty rates', 'Stricter deadlines'],
       };
@@ -562,28 +568,31 @@ class ApiService {
     icon?: string;
     initialMembers?: string[];
   }): Promise<Group> {
-    return this.request<Group>(`${API_CONFIG.USER_SERVICE}/users/groups`, {
+    const response = await this.request<{ group: Group }>(`${API_CONFIG.USER_SERVICE}/users/groups`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    return response.group;
   }
 
-  async getUserGroups(): Promise<Group[]> {
-    return this.request<Group[]>(`${API_CONFIG.USER_SERVICE}/users/groups`);
+  async getUserGroups(): Promise<PaginatedResponse<Group>> {
+    return this.request<PaginatedResponse<Group>>(`${API_CONFIG.USER_SERVICE}/users/groups`);
   }
 
   async getGroupById(groupId: string): Promise<Group> {
-    return this.request<Group>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}`);
+    const response = await this.request<{ group: Group }>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}`);
+    return response.group;
   }
 
   async updateGroup(
     groupId: string,
     updates: { name?: string; description?: string; icon?: string }
   ): Promise<Group> {
-    return this.request<Group>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}`, {
+    const response = await this.request<{ group: Group }>(`${API_CONFIG.USER_SERVICE}/users/groups/${groupId}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
+    return response.group;
   }
 
   async addGroupMembers(groupId: string, memberIds: string[]): Promise<void> {
@@ -649,7 +658,7 @@ class ApiService {
   async createTab(tabData: {
     title: string;
     description?: string;
-    category: TabCategory;
+    category?: TabCategory;
     totalAmount: string;
     currency: string;
     participants: { userId: string; shareAmount?: string }[];
@@ -657,11 +666,12 @@ class ApiService {
     settlementDeadline?: string;
     penaltyRate?: number;
     autoSettleEnabled?: boolean;
-  }): Promise<{ tab: Tab }> {
-    return this.request<{ tab: Tab }>(`${API_CONFIG.TAB_SERVICE}/tabs`, {
+  }): Promise<Tab> {
+    const response = await this.request<{ tab: Tab }>(`${API_CONFIG.TAB_SERVICE}/tabs`, {
       method: 'POST',
       body: JSON.stringify(tabData),
     });
+    return response.tab;
   }
 
   async createGroupTab(
@@ -669,23 +679,24 @@ class ApiService {
     tabData: {
       title: string;
       description?: string;
-      category: string;
+      category?: string;
       totalAmount: string;
       currency: string;
-      participants: { userId: string; shareAmount?: string }[];
+      // participants: { userId: string; shareAmount?: string }[];
       settlementWallet?: string;
       settlementDeadline?: string;
       penaltyRate?: number;
       autoSettleEnabled?: boolean;
     }
-  ): Promise<{ tab: Tab }> {
-    return this.request<{ tab: Tab }>(
+  ): Promise<Tab> {
+    const response = await this.request<{ tab: Tab }>(
       `${API_CONFIG.TAB_SERVICE}/tabs/group/${groupId}`,
       {
         method: 'POST',
         body: JSON.stringify(tabData),
       }
     );
+    return response.tab;
   }
 
   async getTabs(
@@ -706,7 +717,8 @@ class ApiService {
   }
 
   async getTabById(tabId: string): Promise<Tab> {
-    return this.request<Tab>(`${API_CONFIG.TAB_SERVICE}/tabs/${tabId}`);
+    const response = await this.request<{ tab: Tab }>(`${API_CONFIG.TAB_SERVICE}/tabs/${tabId}`);
+    return response.tab;
   }
 
   async verifyTabParticipation(
@@ -723,18 +735,26 @@ class ApiService {
     );
   }
 
+  async resendOTP(tabId: string): Promise<void> {
+    await this.request<void>(
+      `${API_CONFIG.TAB_SERVICE}/tabs/${tabId}/resend-otp`,
+      { method: 'POST' }
+    );
+  }
+
   async updateTab(
     tabId: string,
     updates: { title?: string; description?: string; icon?: string }
   ): Promise<Tab> {
-    return this.request<Tab>(`${API_CONFIG.TAB_SERVICE}/tabs/${tabId}`, {
+    const response = await this.request<{ tab: Tab }>(`${API_CONFIG.TAB_SERVICE}/tabs/${tabId}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
+    return response.tab;
   }
 
-  async settleTab(tabId: string, txHash: string, amount: string): Promise<Tab> {
-    return this.request<Tab>(`${API_CONFIG.TAB_SERVICE}/tabs/${tabId}/settle`, {
+  async settleTab(tabId: string, txHash: string, amount: string): Promise<any> {
+    return this.request<any>(`${API_CONFIG.TAB_SERVICE}/tabs/${tabId}/settle`, {
       method: 'POST',
       body: JSON.stringify({ txHash, amount }),
     });
@@ -750,6 +770,47 @@ class ApiService {
     return this.request<CategoryStats[]>(
       `${API_CONFIG.TAB_SERVICE}/tabs/stats/categories`
     );
+  }
+
+  async generateTabSettlementHash(sender: string, amount: number): Promise<{
+    success: boolean;
+    hash: string;
+    rawTxnHex: string;
+  }> {
+    return this.request<{
+      success: boolean;
+      hash: string;
+      rawTxnHex: string;
+    }>(`${API_CONFIG.TAB_SERVICE}/tabs/generate-hash`, {
+      method: "POST",
+      body: JSON.stringify({ sender, amount }),
+    });
+  }
+
+  async submitTabSettlement(
+    rawTxnHex: string,
+    publicKey: string,
+    signature: string
+  ): Promise<{
+    success: boolean;
+    transactionHash: string;
+    vmStatus: string;
+  }> {
+    return this.request<{
+      success: boolean;
+      transactionHash: string;
+      vmStatus: string;
+    }>(`${API_CONFIG.TAB_SERVICE}/tabs/submit-transaction`, {
+      method: "POST",
+      body: JSON.stringify({ rawTxnHex, publicKey, signature }),
+    });
+  }
+
+  async getUSDCBalance(address: string): Promise<number> {
+    const data = await this.request<{ balance: number }>(
+      `${API_CONFIG.TAB_SERVICE}/tabs/balance/${address}`
+    );
+    return data.balance;
   }
 
   // --------------------------------------------------------------------------
@@ -774,10 +835,10 @@ class ApiService {
   }
 
   async getUnreadCount(): Promise<number> {
-    const data = await this.request<{ count: number }>(
+    const data = await this.request<{ unreadCount: number }>(
       `${API_CONFIG.NOTIFICATION_SERVICE}/notifications/unread-count`
     );
-    return data.count;
+    return data.unreadCount;
   }
 
   async markNotificationAsRead(notificationId: string): Promise<void> {
@@ -873,10 +934,10 @@ class ApiService {
   }
 
   async getUnreadMessagesCount(): Promise<number> {
-    const data = await this.request<{ count: number }>(
+    const data = await this.request<{ unreadCount: number }>(
       `${API_CONFIG.CHAT_SERVICE}/chat/unread`
     );
-    return data.count;
+    return data.unreadCount;
   }
 
   async searchMessages(
@@ -923,6 +984,122 @@ class ApiService {
       {
         method: 'DELETE',
       }
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // Analytics Service Methods
+  // --------------------------------------------------------------------------
+
+  async getDashboardAnalytics(): Promise<{
+    summary: {
+      totalSpent: number;
+      totalOwed: number;
+      activeTabs: number;
+      settledTabs: number;
+      trustScore: number;
+      onTimePaymentRate: number;
+    };
+    recentActivity: {
+      last7Days: { tabsCreated: number; tabsSettled: number; amountSpent: number };
+      last30Days: { tabsCreated: number; tabsSettled: number; amountSpent: number };
+    };
+    topCategories: Array<{
+      category: string;
+      count: number;
+      totalAmount: number;
+      percentage: number;
+    }>;
+    upcomingDeadlines: Array<{
+      tabId: string;
+      title: string;
+      amount: number;
+      deadline: string;
+      daysRemaining: number;
+    }>;
+  }> {
+    return this.request(`${API_CONFIG.USER_SERVICE}/users/analytics/dashboard`);
+  }
+
+  async getSpendingAnalytics(params?: {
+    period?: 'week' | 'month' | 'quarter' | 'year' | 'all';
+    groupBy?: 'day' | 'week' | 'month';
+    category?: string;
+  }): Promise<{
+    totalSpent: number;
+    totalOwed: number;
+    netBalance: number;
+    byCategory: Array<{
+      category: string;
+      spent: number;
+      owed: number;
+      count: number;
+    }>;
+    timeline: Array<{
+      date: string;
+      spent: number;
+      owed: number;
+      count: number;
+    }>;
+    averages: {
+      perTab: number;
+      perDay: number;
+      perMonth: number;
+    };
+  }> {
+    const queryParams = new URLSearchParams(params as any);
+    return this.request(
+      `${API_CONFIG.USER_SERVICE}/users/analytics/spending?${queryParams}`
+    );
+  }
+
+  async getPaymentBehaviorAnalytics(): Promise<{
+    trustScore: {
+      current: number;
+      trend: 'up' | 'down' | 'stable';
+      history: Array<{ date: string; score: number }>;
+    };
+    paymentStats: {
+      totalSettlements: number;
+      onTimePayments: number;
+      latePayments: number;
+      onTimeRate: number;
+      averageSettlementDays: number;
+      earlyPayments: number;
+    };
+    penalties: {
+      totalPenalties: number;
+      totalPenaltyAmount: number;
+      averagePenalty: number;
+    };
+    streaks: {
+      currentOnTimeStreak: number;
+      longestOnTimeStreak: number;
+    };
+  }> {
+    return this.request(`${API_CONFIG.USER_SERVICE}/users/analytics/payment-behavior`);
+  }
+
+  async getSocialAnalytics(): Promise<any> {
+    return this.request(`${API_CONFIG.USER_SERVICE}/users/analytics/social`);
+  }
+
+  async getCategoryAnalytics(params?: {
+    period?: 'week' | 'month' | 'quarter' | 'year' | 'all';
+  }): Promise<any> {
+    const queryParams = new URLSearchParams(params as any);
+    return this.request(
+      `${API_CONFIG.USER_SERVICE}/users/analytics/categories?${queryParams}`
+    );
+  }
+
+  async getTrendsAnalytics(params?: {
+    metric?: 'spending' | 'tabs' | 'trust_score';
+    period?: 'week' | 'month' | 'quarter' | 'year';
+  }): Promise<any> {
+    const queryParams = new URLSearchParams(params as any);
+    return this.request(
+      `${API_CONFIG.USER_SERVICE}/users/analytics/trends?${queryParams}`
     );
   }
 }
