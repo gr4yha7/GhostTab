@@ -40,6 +40,10 @@ GhostTab is a mobile-first Web2.5 application that bridges social obligations wi
 
 The platform employs a hybrid architecture where social interactions and coordination happen offchain (Supabase, GetStream.io), while financial obligations and settlements are recorded onchain (Movement). All blockchain transactions are gas-sponsored by Shinami, delivering a completely gasless experience for end users.
 
+#### GhostTab Backend -> https://github.com/gr4yha7/ghosttab-backend
+#### Pitch Deck -> https://www.canva.com/design/DAG995mx2vA/tH2lcYz9NYL4y3P6-14-Nw/view?utm_content=DAG995mx2vA&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hf639733f06
+
+
 ### Key Highlights
 
 - 📱 **Native Mobile App** - Built with React Native (Expo) and styled with NativeWind
