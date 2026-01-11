@@ -18,10 +18,10 @@ export const Avatar: React.FC<AvatarProps> = ({ src, size = 40, badge }) => (
       />
     ) : (
       <View
-        className="rounded-full bg-indigo-100 items-center justify-center border border-white shadow-sm"
+        className="rounded-full bg-white items-center justify-center border border-slate-100 shadow-sm"
         style={{ width: size, height: size }}
       >
-        <Icon name={'person'} color='white' size={size}/>
+        <Icon name={"person-outline"} color="#64748b" size={20} />
       </View>
     )}
     {badge && (
