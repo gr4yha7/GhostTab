@@ -50,47 +50,88 @@ export default function RootLayout() {
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="index" />
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                  <Stack.Screen 
-                    name="detail" 
-                    options={{ 
+                  <Stack.Screen
+                    name="detail"
+                    options={{
                       presentation: 'card',
                       animation: 'slide_from_bottom'
-                    }} 
+                    }}
                   />
-                  <Stack.Screen 
-                    name="create" 
-                    options={{ 
+                  <Stack.Screen
+                    name="create"
+                    options={{
                       presentation: 'modal',
                       animation: 'slide_from_bottom'
-                    }} 
+                    }}
                   />
-                  <Stack.Screen 
-                    name="chat" 
-                    options={{ 
+                  <Stack.Screen
+                    name="chats"
+                    options={{
+                      presentation: 'pageSheet',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="chat"
+                    options={{
                       presentation: 'modal',
                       animation: 'slide_from_bottom'
-                    }} 
+                    }}
                   />
-                  <Stack.Screen 
-                    name="notifications" 
-                    options={{ 
+                  <Stack.Screen
+                    name="notifications"
+                    options={{
                       presentation: 'modal',
                       animation: 'slide_from_bottom'
-                    }} 
+                    }}
                   />
-                  <Stack.Screen 
-                    name="settle" 
-                    options={{ 
+                  <Stack.Screen
+                    name="settle"
+                    options={{
                       presentation: 'modal',
                       animation: 'slide_from_bottom'
-                    }} 
+                    }}
                   />
-                  <Stack.Screen 
-                    name="add-friend" 
-                    options={{ 
+                  <Stack.Screen
+                    name="accept-invite"
+                    options={{
                       presentation: 'modal',
                       animation: 'slide_from_bottom'
-                    }} 
+                    }}
+                  />
+                  <Stack.Screen
+                    name="create-group"
+                    options={{
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="edit-group"
+                    options={{
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="group-detail"
+                    options={{
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="edit-tab"
+                    options={{
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom'
+                    }}
+                  />
+                  <Stack.Screen
+                    name="search-friends"
+                    options={{
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom'
+                    }}
                   />
                 </Stack>
               </SafeAreaProvider>
