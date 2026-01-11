@@ -12,9 +12,12 @@ interface TrustScoreBadgeProps {
 export function TrustScoreBadge({ score, size = 'medium', showLabel = true }: TrustScoreBadgeProps) {
   const [tier, setTier] = useState<TrustTier | null>(null);
 
+  // Safety check: if score is an object (from old backend responses), extract the numeric score
+  const numericScore = typeof score === 'object' && score !== null ? (score as any).score : score;
+
   useEffect(() => {
-    apiService.getTrustTier(score).then(setTier);
-  }, [score]);
+    apiService.getTrustTier(numericScore).then(setTier);
+  }, [numericScore]);
 
   if (!tier) return null;
 
@@ -31,7 +34,7 @@ export function TrustScoreBadge({ score, size = 'medium', showLabel = true }: Tr
         style={{ backgroundColor: `${tier.color}20` }}
       >
         <Text className="font-bold" style={{ color: tier.color }}>
-          {score} {showLabel && `• ${tier.tier}`}
+          {numericScore} {showLabel && `• ${tier.label}`}
         </Text>
       </View>
     </View>
