@@ -17,7 +17,7 @@ export default function GroupDetailScreen() {
   const { showError } = useError();
   const { data: group, isLoading, refetch } = useGroup(id);
   const { data: tabsData } = useGroupTabs(id, 'OPEN');
-  
+
   const removeMemberMutation = useRemoveGroupMember();
   const makeAdminMutation = useMakeGroupAdmin();
   const removeAdminMutation = useRemoveGroupAdmin();
@@ -44,7 +44,7 @@ export default function GroupDetailScreen() {
     );
   }
 
-  const userMember = group.members.find((m) => m.user.id === user?.id);
+  const userMember = group.members?.find((m) => m.user?.id === user?.id);
   const isCreator = userMember?.role === 'CREATOR';
   const isAdmin = userMember?.role === 'ADMIN' || isCreator;
 
@@ -114,34 +114,34 @@ export default function GroupDetailScreen() {
           </View>
           <Text className="text-2xl font-bold text-slate-900 mb-1">{group.name}</Text>
           {group.description && (
-            <Text className="text-sm text-slate-500 text-center px-6">{group.description}</Text>
+            <Text className="text-sm text-slate-500 text-center px-6 mb-1">{group.description}</Text>
           )}
-          <Text className="text-xs text-slate-400 mt-2">
-            {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
+          <Text className="text-sm text-slate-500 text-center px-6">
+            {group.memberCount || group.members?.length || 0} member{(group.memberCount || group.members?.length) !== 1 ? 's' : ''}
           </Text>
         </View>
 
         <View className="flex-row bg-slate-50 rounded-xl p-1">
           <TouchableOpacity
             onPress={() => setActiveTab('members')}
-            className={`flex-1 py-2 rounded-lg ${activeTab === 'members' ? 'bg-white shadow-sm' : ''}`}
+            className="flex-1 py-2 rounded-lg"
+            style={activeTab === 'members' ? { backgroundColor: 'white', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 } : {}}
           >
             <Text
-              className={`text-center text-sm font-medium ${
-                activeTab === 'members' ? 'text-slate-900' : 'text-slate-500'
-              }`}
+              className="text-center text-sm font-medium"
+              style={{ color: activeTab === 'members' ? '#0f172a' : '#64748b' }}
             >
               Members
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setActiveTab('tabs')}
-            className={`flex-1 py-2 rounded-lg ${activeTab === 'tabs' ? 'bg-white shadow-sm' : ''}`}
+            className="flex-1 py-2 rounded-lg"
+            style={activeTab === 'tabs' ? { backgroundColor: 'white', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 } : {}}
           >
             <Text
-              className={`text-center text-sm font-medium ${
-                activeTab === 'tabs' ? 'text-slate-900' : 'text-slate-500'
-              }`}
+              className="text-center text-sm font-medium"
+              style={{ color: activeTab === 'tabs' ? '#0f172a' : '#64748b' }}
             >
               Tabs
             </Text>
@@ -154,14 +154,14 @@ export default function GroupDetailScreen() {
           <View>
             {isAdmin && (
               <TouchableOpacity
-                onPress={() => router.push({ pathname: '/add-group-members', params: { groupId: id } })}
+                onPress={() => router.push('/search-friends')}
                 className="bg-indigo-600 py-3 rounded-xl mb-4 shadow-lg"
               >
                 <Text className="text-white font-medium text-center">Add Members</Text>
               </TouchableOpacity>
             )}
 
-            {group.members.map((member) => (
+            {group.members?.map((member) => (
               <View
                 key={member.id}
                 className="bg-white rounded-2xl p-4 mb-3 border border-slate-100"
@@ -169,35 +169,34 @@ export default function GroupDetailScreen() {
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center gap-3 flex-1">
                     <Avatar
-                      src={
-                        member.user.avatarUrl ||
-                        `https://api.dicebear.com/7.x/avataaars/png?seed=${member.user.id}`
-                      }
+                      src={member.user?.avatarUrl || ''}
                       size={48}
                     />
                     <View className="flex-1">
                       <Text className="text-sm font-semibold text-slate-900">
-                        {member.user.username || member.user.email?.split('@')[0]}
-                        {member.user.id === user?.id && ' (You)'}
+                        {member.user?.username || member.user?.email?.split('@')[0] || 'Unknown'}
+                        {member.user?.id === user?.id && ' (You)'}
                       </Text>
                       <View className="flex-row items-center gap-2 mt-1">
                         <View
-                          className={`px-2 py-0.5 rounded ${
-                            member.role === 'CREATOR'
-                              ? 'bg-indigo-50'
+                          className="px-2 py-0.5 rounded"
+                          style={{
+                            backgroundColor: member.role === 'CREATOR'
+                              ? '#f5f3ff' // indigo-50
                               : member.role === 'ADMIN'
-                              ? 'bg-emerald-50'
-                              : 'bg-slate-50'
-                          }`}
+                                ? '#ecfdf5' // emerald-50
+                                : '#f8fafc' // slate-50
+                          }}
                         >
                           <Text
-                            className={`text-[10px] font-bold ${
-                              member.role === 'CREATOR'
-                                ? 'text-indigo-600'
+                            className="text-[10px] font-bold"
+                            style={{
+                              color: member.role === 'CREATOR'
+                                ? '#4f46e5' // indigo-600
                                 : member.role === 'ADMIN'
-                                ? 'text-emerald-600'
-                                : 'text-slate-500'
-                            }`}
+                                  ? '#059669' // emerald-600
+                                  : '#64748b' // slate-500
+                            }}
                           >
                             {member.role}
                           </Text>
@@ -261,7 +260,7 @@ export default function GroupDetailScreen() {
           <View>
             {isAdmin && (
               <TouchableOpacity
-                onPress={() => router.push({ pathname: '/create-group-tab', params: { groupId: id } })}
+                onPress={() => router.push({ pathname: '/create', params: { groupId: id } })}
                 className="bg-indigo-600 py-3 rounded-xl mb-4 shadow-lg"
               >
                 <Text className="text-white font-medium text-center">Create Group Tab</Text>
@@ -276,16 +275,16 @@ export default function GroupDetailScreen() {
                 <Text className="text-slate-400 text-center">No active tabs in this group</Text>
               </View>
             ) : (
-              tabsData.data.map((tab) => (
+              tabsData?.data?.map((tab) => (
                 <TouchableOpacity
                   key={tab.id}
-                  onPress={() => router.push({ pathname: '/detail', params: { id: tab.id } })}
+                  onPress={() => router.push(`/detail?id=${tab.id}`)}
                   className="bg-white rounded-2xl p-4 mb-3 border border-slate-100"
                 >
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center gap-3 flex-1">
                       <View className="w-12 h-12 bg-orange-50 rounded-xl items-center justify-center">
-                        <Text className="text-2xl">{TAB_CATEGORIES[tab.category].icon || '💸'}</Text>
+                        <Text className="text-2xl">{TAB_CATEGORIES[tab.category]?.icon || '💸'}</Text>
                       </View>
                       <View className="flex-1">
                         <Text className="text-base font-semibold text-slate-900">{tab.title}</Text>
