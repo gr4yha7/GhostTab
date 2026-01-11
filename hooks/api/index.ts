@@ -135,8 +135,7 @@ export const useAcceptFriendRequest = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ friendshipId, otpCode }: { friendshipId: string; otpCode?: string }) =>
-      apiService.acceptFriendRequest(friendshipId, otpCode),
+    mutationFn: (friendshipId: string) => apiService.acceptFriendRequest(friendshipId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends.all });
     },
@@ -295,10 +294,10 @@ export const useCreateGroupTab = () => {
       tabData: {
         title: string;
         description?: string;
-        category: TabCategory;
+        category?: TabCategory;
         totalAmount: string;
         currency: string;
-        participants: { userId: string; shareAmount?: string }[];
+        // participants: { userId: string; shareAmount?: string }[];
         settlementWallet?: string;
         settlementDeadline?: string;
         penaltyRate?: number;
@@ -342,7 +341,7 @@ export const useDeleteGroup = () => {
 
 export const useTabs = (status?: 'OPEN' | 'SETTLED' | 'CANCELLED', category?: TabCategory, page = 1, limit = 20) => {
   return useQuery({
-    queryKey: queryKeys.tabs.list(status),
+    queryKey: [...queryKeys.tabs.list(status), category],
     queryFn: () => apiService.getTabs(status, category, page, limit),
   });
 };
@@ -362,7 +361,7 @@ export const useCreateTab = () => {
     mutationFn: (tabData: {
       title: string;
       description?: string;
-      category: TabCategory;
+      category?: TabCategory;
       totalAmount: string;
       currency: string;
       participants: { userId: string; shareAmount?: string }[];
@@ -405,6 +404,9 @@ export const useSettleTab = () => {
     onSuccess: (data, variables) => {
       queryClient.setQueryData(queryKeys.tabs.detail(variables.tabId), data);
       queryClient.invalidateQueries({ queryKey: queryKeys.tabs.list() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.profile });
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.me });
+      queryClient.invalidateQueries({ queryKey: ['analytics', 'dashboard'] });
     },
   });
 };
@@ -421,6 +423,25 @@ export const useCancelTab = () => {
   });
 };
 
+export const useResendOTP = () => {
+  return useMutation({
+    mutationFn: (tabId: string) => apiService.resendOTP(tabId),
+  });
+};
+
+export const useVerifyParticipation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ tabId, otpCode, accept }: { tabId: string; otpCode: string; accept: boolean }) =>
+      apiService.verifyTabParticipation(tabId, otpCode, accept),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tabs.detail(variables.tabId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tabs.list() });
+    },
+  });
+};
+
 // ============================================================================
 // Notification Hooks
 // ============================================================================
@@ -429,6 +450,41 @@ export const useNotifications = (read?: boolean, page = 1, limit = 20) => {
   return useQuery({
     queryKey: queryKeys.notifications.list(read),
     queryFn: () => apiService.getNotifications(read, undefined, page, limit),
+  });
+};
+
+export const useGenerateSettlementHash = () => {
+  return useMutation({
+    mutationFn: ({ sender, amount }: { sender: string; amount: number }) =>
+      apiService.generateTabSettlementHash(sender, amount),
+  });
+};
+
+export const useSubmitSettlement = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      rawTxnHex,
+      publicKey,
+      signature,
+    }: {
+      rawTxnHex: string;
+      publicKey: string;
+      signature: string;
+    }) => apiService.submitTabSettlement(rawTxnHex, publicKey, signature),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tabs.all });
+    },
+  });
+};
+
+export const useUSDCBalance = (address: string) => {
+  return useQuery({
+    queryKey: ['balance', address],
+    queryFn: () => apiService.getUSDCBalance(address),
+    enabled: !!address,
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 };
 
@@ -563,5 +619,137 @@ export const useUpdateMessage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.chat.all });
     },
+  });
+};
+
+// ============================================================================
+// Analytics Hooks
+// ============================================================================
+
+export const useDashboardAnalytics = () => {
+  return useQuery({
+    queryKey: ['analytics', 'dashboard'],
+    queryFn: () => apiService.getDashboardAnalytics(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+export const useSpendingAnalytics = (params?: {
+  period?: 'week' | 'month' | 'quarter' | 'year' | 'all';
+  groupBy?: 'day' | 'week' | 'month';
+  category?: string;
+}) => {
+  return useQuery({
+    queryKey: ['analytics', 'spending', params],
+    queryFn: () => apiService.getSpendingAnalytics(params),
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+};
+
+export const usePaymentBehaviorAnalytics = () => {
+  return useQuery({
+    queryKey: ['analytics', 'payment-behavior'],
+    queryFn: () => apiService.getPaymentBehaviorAnalytics(),
+    staleTime: 10 * 60 * 1000,
+  });
+};
+
+export const useCategoryAnalytics = (params?: {
+  period?: 'week' | 'month' | 'quarter' | 'year' | 'all';
+}) => {
+  return useQuery({
+    queryKey: ['analytics', 'categories', params],
+    queryFn: () => apiService.getCategoryAnalytics(params),
+    staleTime: 10 * 60 * 1000,
+  });
+};
+
+export const useSocialAnalytics = () => {
+  return useQuery({
+    queryKey: ['analytics', 'social'],
+    queryFn: () => apiService.getSocialAnalytics(),
+    staleTime: 15 * 60 * 1000,
+  });
+};
+
+export const useTrendsAnalytics = (params?: {
+  metric?: 'spending' | 'tabs' | 'trust_score';
+  period?: 'week' | 'month' | 'quarter' | 'year';
+}) => {
+  return useQuery({
+    queryKey: ['analytics', 'trends', params],
+    queryFn: () => apiService.getTrendsAnalytics(params),
+    staleTime: 10 * 60 * 1000,
+  });
+};
+
+export interface InsightsAnalytics {
+  totalSplit: number;
+  totalOwed: number;
+  averageSettleTime: number;
+  categoryStats: Array<{
+    category: string;
+    totalAmount: string;
+    spent: number;
+    count: number;
+    percentage: number;
+  }>;
+  monthlyActivity: Array<{
+    month: string;
+    amount: string;
+  }>;
+  timeline: any[];
+  topSplittingPals: Array<{
+    user: {
+      id: string;
+      username: string;
+      avatarUrl?: string;
+      email?: string;
+    };
+    sharedTabsCount: number;
+    totalAmount: string;
+  }>;
+}
+
+export const useInsightsAnalytics = () => {
+  return useQuery<InsightsAnalytics>({
+    queryKey: ['analytics', 'insights-aggregate'],
+    queryFn: async () => {
+      const [spending, behavior, social, categories] = await Promise.all([
+        apiService.getSpendingAnalytics({ period: 'year', groupBy: 'month' }),
+        apiService.getPaymentBehaviorAnalytics(),
+        apiService.getSocialAnalytics(),
+        apiService.getCategoryAnalytics({ period: 'year' }),
+      ]);
+
+      return {
+        totalSplit: spending.totalSpent,
+        totalOwed: spending.totalOwed,
+        averageSettleTime: behavior.paymentStats.averageSettlementDays,
+        categoryStats: spending.byCategory.map(c => ({
+          category: c.category,
+          totalAmount: String(c.spent),
+          spent: Number(c.spent),
+          count: c.count,
+          percentage: (c.spent / spending.totalSpent) * 100 || 0,
+        })),
+        monthlyActivity: spending.timeline.map(t => ({
+          month: new Date(t.date).toLocaleString('default', { month: 'short' }),
+          amount: String(t.spent),
+        })),
+        timeline: spending.timeline,
+        topSplittingPals: (social.topCollaborators || []).map((c: any) => ({
+          user: {
+            id: c.userId,
+            username: c.username,
+            avatarUrl: c.avatarUrl,
+            email: c.email
+          },
+          sharedTabsCount: c.tabCount,
+          totalAmount: String(c.totalAmount)
+        })),
+      };
+    },
+    staleTime: 5 * 60 * 1000,
   });
 };
